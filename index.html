@@ -1,81 +1,220 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <meta charset="utf-8">
-    <title>3js Room with MeshNormalMaterial and Outline</title>
+    <meta charset="UTF-8" />
+    <title>3JS Main Panel with Doors</title>
     <style>
       body { margin: 0; overflow: hidden; }
       canvas { display: block; }
     </style>
   </head>
   <body>
-    <!-- Using three.js version 0.160.1 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.js"></script>
+    
+    
+    <!-- Include Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-      /* global THREE */
-      let scene, camera, renderer, room, artMesh, roomOutline;
-      let width = window.innerWidth;
-      let height = window.innerHeight;
-
-      function setup() {
-        // Create scene and camera
+      let scene, camera, renderer;
+      let mainPanel, mainPanelBorder;
+      let cornerLines = [];
+      let doorMesh;   // Door on the bottom-left connecting line.
+      let doorMesh2;  // Door on the bottom-right connecting line.
+      
+      init();
+      animate();
+      
+      function init() {
+        // Create the scene with a white background.
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-
-        // Setup renderer
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(width, height);
-        document.body.appendChild(renderer.domElement);
-
-        // Create the room using an inside-out cube.
-        const roomSize = 10;
-        const roomGeometry = new THREE.BoxGeometry(roomSize, roomSize, roomSize);
-        const roomMaterial = new THREE.MeshNormalMaterial({ side: THREE.BackSide });
-        room = new THREE.Mesh(roomGeometry, roomMaterial);
-        scene.add(room);
-
-        // Add an outline to the room using edges geometry.
-        const roomEdges = new THREE.EdgesGeometry(roomGeometry);
-        roomOutline = new THREE.LineSegments(
-          roomEdges,
-          new THREE.LineBasicMaterial({ color: 0xffffff })
+        scene.background = new THREE.Color(0xffffff);
+        
+        // Create a perspective camera.
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
         );
-        scene.add(roomOutline);
-
-        // Add art on the back wall.
-        const artWidth = 4;
-        const artHeight = 3;
-        const artGeometry = new THREE.PlaneGeometry(artWidth, artHeight);
+        camera.position.z = 5;
+        
+        // Set up the renderer.
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        
+        // Create the main panel (white).
         const textureLoader = new THREE.TextureLoader();
-        const artTexture = textureLoader.load('https://via.placeholder.com/400x300.png');
-        const artMaterial = new THREE.MeshBasicMaterial({ map: artTexture });
-        artMesh = new THREE.Mesh(artGeometry, artMaterial);
-        // Position the art slightly in front of the back wall (negative Z).
-        artMesh.position.set(0, 0, -roomSize / 2 + 0.01);
-        scene.add(artMesh);
+        const myTexture = textureLoader.load('aochan.jpg');
+        const panelMaterial = new THREE.MeshBasicMaterial({ map: myTexture, side: THREE.DoubleSide });
 
-        // Place the camera inside the room at the center.
-        camera.position.set(0, 0, 0);
-
-        // Adjust on window resize.
+        mainPanel = new THREE.Mesh(new THREE.BufferGeometry(), panelMaterial);
+        scene.add(mainPanel);
+        
+        // Create four black connecting lines.
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
+        for (let i = 0; i < 4; i++) {
+          const lineGeom = new THREE.BufferGeometry();
+          lineGeom.setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+          const line = new THREE.Line(lineGeom, lineMaterial);
+          scene.add(line);
+          cornerLines.push(line);
+        }
+        
+        // Build the scene geometry.
+        updateScene();
+        
+        // Update scene on window resize.
         window.addEventListener('resize', onWindowResize, false);
       }
-
-      function onWindowResize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
+      
+      function updateScene() {
+        // --- Compute Viewport and Main Panel Dimensions ---
+        const distance = camera.position.z; // Plane at z = 0.
+        const vFOV = THREE.Math.degToRad(camera.fov); // Field of view in radians.
+        const viewHeight = 2 * distance * Math.tan(vFOV / 2);
+        const viewWidth = viewHeight * camera.aspect;
+        
+        // Compute viewport boundaries at z = 0.
+        const halfWidth = viewWidth / 2;
+        const halfHeight = viewHeight / 2;
+        const vpLeft = -halfWidth;
+        const vpRight = halfWidth;
+        const vpTop = halfHeight;
+        const vpBottom = -halfHeight;
+        
+        // Define main panel boundaries (80% of viewport).
+        const mainLeft = -0.4 * viewWidth;
+        const mainRight = 0.4 * viewWidth;
+        const mainTop = 0.4 * viewHeight;
+        const mainBottom = -0.4 * viewHeight;
+        
+        
+        
+        // --- Update Main Panel Geometry ---
+        const mainGeom = new THREE.BufferGeometry();
+        const mainVertices = new Float32Array([
+          mainLeft,  mainTop,    0,  // Top-left.
+          mainRight, mainTop,    0,  // Top-right.
+          mainRight, mainBottom, 0,  // Bottom-right.
+          mainLeft,  mainBottom, 0   // Bottom-left.
+        ]);
+        mainGeom.setAttribute('position', new THREE.BufferAttribute(mainVertices, 3));
+        mainGeom.setIndex([0, 1, 2, 2, 3, 0]);
+        mainGeom.computeVertexNormals();
+        mainPanel.geometry.dispose();
+        mainPanel.geometry = mainGeom;
+        
+        // --- Update Main Panel Border ---
+        if (mainPanelBorder) {
+          scene.remove(mainPanelBorder);
+          mainPanelBorder.geometry.dispose();
+        }
+        mainPanelBorder = new THREE.LineSegments(
+          new THREE.EdgesGeometry(mainPanel.geometry),
+          new THREE.LineBasicMaterial({ color: 0x000000 })
+        );
+        scene.add(mainPanelBorder);
+        
+        // --- Update the Corner Connecting Lines ---
+        const pairs = [
+          { window: new THREE.Vector3(vpLeft,  vpTop,    0), panel: new THREE.Vector3(mainLeft,  mainTop,    0) },
+          { window: new THREE.Vector3(vpRight, vpTop,    0), panel: new THREE.Vector3(mainRight, mainTop,    0) },
+          { window: new THREE.Vector3(vpRight, vpBottom, 0), panel: new THREE.Vector3(mainRight, mainBottom, 0) },
+          { window: new THREE.Vector3(vpLeft,  vpBottom, 0), panel: new THREE.Vector3(mainLeft,  mainBottom, 0) }
+        ];
+        for (let i = 0; i < 4; i++) {
+          const pts = [ pairs[i].window, pairs[i].panel ];
+          const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
+          cornerLines[i].geometry.dispose();
+          cornerLines[i].geometry = lineGeom;
+        }
+        
+        // --- Create/Update Door on the Bottom-Left Line ---
+        // Door's bottom edge: anchored on connecting line from:
+        // A: viewport bottom-left, to B: main panel bottom-left.
+        const A = new THREE.Vector3(vpLeft, vpBottom, 0);
+        const B = new THREE.Vector3(mainLeft, mainBottom, 0);
+        const dir = new THREE.Vector3().subVectors(B, A);
+        const lineLength = dir.length();
+        const doorLength = 0.3 * lineLength;  // 30% of the line's length.
+        const doorDir = dir.clone().normalize();
+        // Midpoint of the connecting line.
+        const M = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
+        // Door bottom edge endpoints centered at M.
+        const doorBottomLeft = M.clone().addScaledVector(doorDir, -doorLength / 2);
+        const doorBottomRight = M.clone().addScaledVector(doorDir, doorLength / 2);
+        // For vertical edges, shift upward.
+        const vertical = new THREE.Vector3(0, 1, 0);
+        const doorHeight = 0.1 * viewHeight;
+        const doorTopLeft = doorBottomLeft.clone().addScaledVector(vertical, doorHeight);
+        const doorTopRight = doorBottomRight.clone().addScaledVector(vertical, doorHeight);
+        
+        const doorVertices = new Float32Array([
+          doorBottomLeft.x,  doorBottomLeft.y,  doorBottomLeft.z,
+          doorBottomRight.x, doorBottomRight.y, doorBottomRight.z,
+          doorTopRight.x,    doorTopRight.y,    doorTopRight.z,
+          doorTopLeft.x,     doorTopLeft.y,     doorTopLeft.z
+        ]);
+        const doorGeom = new THREE.BufferGeometry();
+        doorGeom.setAttribute('position', new THREE.BufferAttribute(doorVertices, 3));
+        doorGeom.setIndex([0, 1, 2, 2, 3, 0]);
+        doorGeom.computeVertexNormals();
+        if (doorMesh) {
+          scene.remove(doorMesh);
+          doorMesh.geometry.dispose();
+        }
+        const doorMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000, side: THREE.DoubleSide });
+        doorMesh = new THREE.Mesh(doorGeom, doorMaterial);
+        scene.add(doorMesh);
+        
+        // --- Create/Update Door on the Bottom-Right Line ---
+        // Door's bottom edge: anchored on connecting line from:
+        // A2: viewport bottom-right, to B2: main panel bottom-right.
+        const A2 = new THREE.Vector3(vpRight, vpBottom, 0);
+        const B2 = new THREE.Vector3(mainRight, mainBottom, 0);
+        const dir2 = new THREE.Vector3().subVectors(B2, A2);
+        const lineLength2 = dir2.length();
+        const doorLength2 = 0.3 * lineLength2;  // 30% of the connecting line's length.
+        const doorDir2 = dir2.clone().normalize();
+        // Midpoint of the connecting line.
+        const M2 = new THREE.Vector3().addVectors(A2, B2).multiplyScalar(0.5);
+        // Compute door bottom edge endpoints centered at M2.
+        const doorBottomLeft2 = M2.clone().addScaledVector(doorDir2, -doorLength2 / 2);
+        const doorBottomRight2 = M2.clone().addScaledVector(doorDir2, doorLength2 / 2);
+        // Vertical shift for the door top.
+        const doorTopLeft2 = doorBottomLeft2.clone().addScaledVector(vertical, doorHeight);
+        const doorTopRight2 = doorBottomRight2.clone().addScaledVector(vertical, doorHeight);
+        
+        const doorVertices2 = new Float32Array([
+          doorBottomLeft2.x,  doorBottomLeft2.y,  doorBottomLeft2.z,
+          doorBottomRight2.x, doorBottomRight2.y, doorBottomRight2.z,
+          doorTopRight2.x,    doorTopRight2.y,    doorTopRight2.z,
+          doorTopLeft2.x,     doorTopLeft2.y,     doorTopLeft2.z
+        ]);
+        const doorGeom2 = new THREE.BufferGeometry();
+        doorGeom2.setAttribute('position', new THREE.BufferAttribute(doorVertices2, 3));
+        doorGeom2.setIndex([0, 1, 2, 2, 3, 0]);
+        doorGeom2.computeVertexNormals();
+        if (doorMesh2) {
+          scene.remove(doorMesh2);
+          doorMesh2.geometry.dispose();
+        }
+        const doorMaterial2 = new THREE.MeshBasicMaterial({ color: 0x0000FF, side: THREE.DoubleSide });
+        doorMesh2 = new THREE.Mesh(doorGeom2, doorMaterial2);
+        scene.add(doorMesh2);
       }
-
+      
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        updateScene();
+      }
+      
       function animate() {
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
       }
-
-      window.addEventListener('load', setup);
-      window.addEventListener('load', animate);
     </script>
   </body>
 </html>

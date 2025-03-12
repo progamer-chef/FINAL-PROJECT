@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>3js Room with MeshNormalMaterial and Outline</title>
+    <style>
+      body { margin: 0; overflow: hidden; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <!-- Using three.js version 0.160.1 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.js"></script>
+    <script>
+      /* global THREE */
+      let scene, camera, renderer, room, artMesh, roomOutline;
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+
+      function setup() {
+        // Create scene and camera
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+
+        // Setup renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        document.body.appendChild(renderer.domElement);
+
+        // Create the room using an inside-out cube.
+        const roomSize = 10;
+        const roomGeometry = new THREE.BoxGeometry(roomSize, roomSize, roomSize);
+        const roomMaterial = new THREE.MeshNormalMaterial({ side: THREE.BackSide });
+        room = new THREE.Mesh(roomGeometry, roomMaterial);
+        scene.add(room);
+
+        // Add an outline to the room using edges geometry.
+        const roomEdges = new THREE.EdgesGeometry(roomGeometry);
+        roomOutline = new THREE.LineSegments(
+          roomEdges,
+          new THREE.LineBasicMaterial({ color: 0xffffff })
+        );
+        scene.add(roomOutline);
+
+        // Add art on the back wall.
+        const artWidth = 4;
+        const artHeight = 3;
+        const artGeometry = new THREE.PlaneGeometry(artWidth, artHeight);
+        const textureLoader = new THREE.TextureLoader();
+        const artTexture = textureLoader.load('https://via.placeholder.com/400x300.png');
+        const artMaterial = new THREE.MeshBasicMaterial({ map: artTexture });
+        artMesh = new THREE.Mesh(artGeometry, artMaterial);
+        // Position the art slightly in front of the back wall (negative Z).
+        artMesh.position.set(0, 0, -roomSize / 2 + 0.01);
+        scene.add(artMesh);
+
+        // Place the camera inside the room at the center.
+        camera.position.set(0, 0, 0);
+
+        // Adjust on window resize.
+        window.addEventListener('resize', onWindowResize, false);
+      }
+
+      function onWindowResize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener('load', setup);
+      window.addEventListener('load', animate);
+    </script>
+  </body>
+</html>

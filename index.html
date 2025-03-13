@@ -29,12 +29,19 @@
           z-index: 100;
           padding: 20px; /* Add padding to prevent text from touching edges */
           box-sizing: border-box; /* Make padding included in width/height calculation */
-        }
+        
+      }
+        .boombox {
+          position: fixed;
+          transform: rotateY(180deg)scale(.3);
+          bottom: -105px;
+          right: -50px;
+      }
     </style>
   </head>
   <body>
-    <div>
-      <img src="filename.jpg" alt="description of image">
+    <div class="boombox">
+      <img src="boombox.gif" alt="box go boom">
     </div>
     <!-- Text container div -->
     <div id="textContainer">
@@ -421,6 +428,16 @@
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
       }
+      
+      document.addEventListener('DOMContentLoaded', () => {
+  const gif = document.querySelector('.boombox img');
+  const originalSrc = gif.src;
+  gif.src = ''; // Stop initial gif play
+
+  document.querySelector('.boombox').addEventListener('click', () => {
+    gif.src = originalSrc; // Restart gif on click
+  });
+});
     </script>
   </body>
 </html>

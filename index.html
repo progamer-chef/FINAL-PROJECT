@@ -2,13 +2,45 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>3JS Main Panel with Doors and Click Rotation (Card Flip with Separate Text)</title>
+    <title>3JS Main Panel with Dynamic Text Backside</title>
     <style>
-      body { margin: 0; overflow: hidden; }
-      canvas { display: block; }
+      body { 
+        margin: 0; 
+        overflow: hidden; 
+        font-family: Arial, sans-serif;
+      }
+      canvas { 
+        display: block; 
+      }
+      #textContainer {
+        position: absolute;
+        background-color: #fff;
+        font-family: monospace;
+        width: 80%;
+        height: 80%;
+        top: 10%;
+        left: 10%;
+        display: none; /* Initially hidden */
+        justify-content: center;
+        align-items: center;
+        cursor: pointer; /* Add cursor to indicate it's clickable */
+        z-index: 100; /* Ensure text appears on top */
+      }
     </style>
   </head>
   <body>
+    <!-- Text container div -->
+    <div id="textContainer">
+      <div style="padding: 20px; max-width: 80%;">
+        <h2>T-Shirt Design for アオちゃん</h2>
+        <p>アオちゃん was my coworker for a café I worked at. She's an amazing pastry chef, always fashionable and one of the nicest people I met in Japan.</p>
+        <p>In the top right, the blue apron was our standard uniform. In the bottom left is my attempt at making fake Japanese fashion. The shirt says IM COOL YO.</p>
+        <p>The bottom right features an Ao-Chan in a Tiger suit – an inside joke about cougars and big cats.</p>
+        <p>The sunflowers come from the kanji for Ao-Chan's uncontracted name Aoi.</p>
+        <p>My hand-drawn characters say <em>Aoi's T-shirt, do not steal</em> (meaning my older sister is totally rad).</p>
+      </div>
+    </div>
+
     <!-- Include Three.js from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
@@ -18,49 +50,14 @@
       let doorMesh;   // Door on the bottom-left connecting line.
       let doorMesh2;  // Door on the bottom-right connecting line.
       
-      // Global variables for rotation animation.
-      let targetRotationY = 0;
-      let isRotating = false;
+      // Track if we're viewing the panel or text
+      let isViewingPanel = true;
       
-      // We'll store our text texture so we can update it on resize if needed.
-      let textTexture;
+      // Text container element
+      const textContainer = document.getElementById('textContainer');
       
       init();
       animate();
-      
-      // Utility function to create (or recreate) the text texture.
-      function createTextTexture() {
-        const canvas = document.createElement('canvas');
-        // Set a high resolution for better quality.
-        canvas.width = 1024;
-        canvas.height = 1024;
-        const ctx = canvas.getContext('2d');
-        // Fill background white.
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        // Draw text.
-        ctx.fillStyle = "#000000";
-        ctx.font = "40px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const text = "T-Shirt Design for アオちゃん\n\n" +
-                     "アオちゃん was my coworker for a café I worked at. She's an amazing pastry chef,\n" +
-                     "always fashionable and one of the nicest people I met in Japan.\n\n" +
-                     "In the top right, the blue apron was our standard uniform. In the bottom left is my\n" +
-                     "attempt at making fake Japanese fashion. The shirt says IM COOL YO.\n\n" +
-                     "The bottom right features an Ao-Chan in a Tiger suit – an inside joke about cougars\n" +
-                     "and big cats.\n\n" +
-                     "The sunflowers come from the kanji for Ao-Chan's uncontracted name Aoi.\n\n" +
-                     "My hand-drawn characters say *Aoi's T-shirt, do not steal* (meaning my older sister is\n" +
-                     "totally rad).";
-        const lines = text.split('\n');
-        const lineHeight = 50;
-        // Draw each line (you can adjust positioning as needed)
-        for (let i = 0; i < lines.length; i++) {
-          ctx.fillText(lines[i], canvas.width / 2, canvas.height / 2 - (lines.length / 2 - i) * lineHeight);
-        }
-        return new THREE.CanvasTexture(canvas);
-      }
       
       function init() {
         // Create the scene with a white background.
@@ -95,36 +92,65 @@
         mainPanel = new THREE.Mesh(new THREE.BufferGeometry(), panelMaterial);
         scene.add(mainPanel);
         
-        // Create four black connecting lines.
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
-        for (let i = 0; i < 4; i++) {
-          const lineGeom = new THREE.BufferGeometry();
-          lineGeom.setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-          const line = new THREE.Line(lineGeom, lineMaterial);
-          scene.add(line);
-          cornerLines.push(line);
-        }
-        
-        // Create the text texture for the card's back.
-        textTexture = createTextTexture();
+        // Initialize corner lines array but don't create geometry yet
+        cornerLines = [null, null, null, null];
         
         // Set up raycaster and mouse vector for click interactions.
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         
         function onMouseClick(event) {
-          // Convert mouse position to normalized device coordinates (-1 to +1).
-          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-          raycaster.setFromCamera(mouse, camera);
-          const intersects = raycaster.intersectObject(mainPanel);
-          if (intersects.length > 0) {
-            console.log("Main panel clicked!");
-            targetRotationY = mainPanel.rotation.y + Math.PI;
-            isRotating = true;
+          // Only process panel clicks if we're in panel view mode
+          if (isViewingPanel) {
+            // Convert mouse position to normalized device coordinates (-1 to +1).
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            
+            const intersects = raycaster.intersectObjects([mainPanel, mainPanelBorder]);
+            if (intersects.length > 0) {
+              console.log("Main panel clicked!");
+              
+              // Hide panel and all related elements
+              mainPanel.visible = false;
+              cornerLines.forEach(line => { if (line) line.visible = false; });
+              if (doorMesh) doorMesh.visible = false;
+              if (doorMesh2) doorMesh2.visible = false;
+              
+              // Position text container where the panel was
+              textContainer.style.display = 'flex';
+              
+              // Update state
+              isViewingPanel = false;
+              
+              // Force a render to update immediately
+              renderer.render(scene, camera);
+            }
           }
         }
         window.addEventListener("click", onMouseClick, false);
+        
+        // Add click handler for text container to show panel again
+        textContainer.addEventListener("click", function(event) {
+          console.log("Text container clicked!");
+          // Prevent the event from bubbling up
+          event.stopPropagation();
+          
+          // Force the panel to reappear regardless of state
+          mainPanel.visible = true;
+          cornerLines.forEach(line => { if (line) line.visible = true; });
+          if (doorMesh) doorMesh.visible = true;
+          if (doorMesh2) doorMesh2.visible = true;
+          
+          // Hide the text
+          textContainer.style.display = 'none';
+          
+          // Update state
+          isViewingPanel = true;
+          
+          // Force a render to update immediately
+          renderer.render(scene, camera);
+        });
         
         // Build the scene geometry.
         updateScene();
@@ -132,6 +158,11 @@
       }
       
       function updateScene() {
+        // If we're in text view mode, don't do any updates
+        if (!isViewingPanel) {
+          return;
+        }
+        
         // --- Compute Viewport and Main Panel Dimensions ---
         const distance = camera.position.z;
         const vFOV = THREE.Math.degToRad(camera.fov);
@@ -169,37 +200,50 @@
         mainGeom.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
         mainGeom.setIndex([0, 1, 2, 2, 3, 0]);
         mainGeom.computeVertexNormals();
-        mainPanel.geometry.dispose();
+        
+        // Dispose of old geometry before replacing
+        if (mainPanel.geometry) {
+          mainPanel.geometry.dispose();
+        }
         mainPanel.geometry = mainGeom;
         
         // --- Update Main Panel Border ---
         if (mainPanelBorder) {
-          scene.remove(mainPanelBorder);
+          mainPanel.remove(mainPanelBorder);
           mainPanelBorder.geometry.dispose();
         }
         mainPanelBorder = new THREE.LineSegments(
           new THREE.EdgesGeometry(mainPanel.geometry),
           new THREE.LineBasicMaterial({ color: 0x000000 })
         );
-        scene.add(mainPanelBorder);
+        // Add border to panel so it moves with it
+        mainPanel.add(mainPanelBorder);
         
         // --- Update the Corner Connecting Lines ---
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
         const pairs = [
           { window: new THREE.Vector3(vpLeft, vpTop, 0), panel: new THREE.Vector3(mainLeft, mainTop, 0) },
           { window: new THREE.Vector3(vpRight, vpTop, 0), panel: new THREE.Vector3(mainRight, mainTop, 0) },
           { window: new THREE.Vector3(vpRight, vpBottom, 0), panel: new THREE.Vector3(mainRight, mainBottom, 0) },
           { window: new THREE.Vector3(vpLeft, vpBottom, 0), panel: new THREE.Vector3(mainLeft, mainBottom, 0) }
         ];
+        
+        // Handle each corner line
         for (let i = 0; i < 4; i++) {
           const pts = [pairs[i].window, pairs[i].panel];
           const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
-          cornerLines[i].geometry.dispose();
-          cornerLines[i].geometry = lineGeom;
+          
+          // If the line already exists, update its geometry
+          if (cornerLines[i]) {
+            scene.remove(cornerLines[i]);
+            cornerLines[i].geometry.dispose();
+          }
+          
+          // Create a new line
+          cornerLines[i] = new THREE.Line(lineGeom, lineMaterial);
+          scene.add(cornerLines[i]);
         }
         
-        // --- Create/Update Door on the Bottom-Left and Bottom-Right Lines (unchanged) ---
-        // [Your door code remains here...]
-        // (For brevity, the door code remains the same as in your original implementation.)
         // --- Create/Update Door on the Bottom-Left Line ---
         const A = new THREE.Vector3(vpLeft, vpBottom, 0);
         const B = new THREE.Vector3(mainLeft, mainBottom, 0);
@@ -224,10 +268,14 @@
         doorGeom.setAttribute('position', new THREE.BufferAttribute(doorVertices, 3));
         doorGeom.setIndex([0, 1, 2, 2, 3, 0]);
         doorGeom.computeVertexNormals();
+        
+        // Clean up existing door mesh
         if (doorMesh) {
           scene.remove(doorMesh);
           doorMesh.geometry.dispose();
+          doorMesh.material.dispose();
         }
+        
         const doorMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
         doorMesh = new THREE.Mesh(doorGeom, doorMaterial);
         scene.add(doorMesh);
@@ -254,77 +302,32 @@
         doorGeom2.setAttribute('position', new THREE.BufferAttribute(doorVertices2, 3));
         doorGeom2.setIndex([0, 1, 2, 2, 3, 0]);
         doorGeom2.computeVertexNormals();
+        
+        // Clean up existing door mesh
         if (doorMesh2) {
           scene.remove(doorMesh2);
           doorMesh2.geometry.dispose();
+          doorMesh2.material.dispose();
         }
+        
         const doorMaterial2 = new THREE.MeshBasicMaterial({ color: 0x0000ff, side: THREE.DoubleSide });
         doorMesh2 = new THREE.Mesh(doorGeom2, doorMaterial2);
         scene.add(doorMesh2);
-        
-        // --- Create/Update the Back Text Mesh as a Child of mainPanel ---
-        // Use the card dimensions:
-        const cardWidth = mainRight - mainLeft;
-        const cardHeight = mainTop - mainBottom;
-        if (!mainPanel.userData.textMesh) {
-          const textGeometry = new THREE.PlaneGeometry(cardWidth, cardHeight);
-          const textMaterial = new THREE.MeshBasicMaterial({
-            map: textTexture,
-            transparent: true,
-            side: THREE.DoubleSide
-          });
-          const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-          // Position the textMesh so it sits on the back face of the card.
-          // In mainPanel's local space, the card lies in the XY-plane (z = 0).
-          // We offset the textMesh slightly in the -z direction.
-          textMesh.position.set(0, 0, -0.01);
-          // Rotate the textMesh by 180° around the Y-axis so it appears upright when the card is flipped.
-          textMesh.rotation.y = Math.PI;
-          mainPanel.add(textMesh);
-          mainPanel.userData.textMesh = textMesh;
-        } else {
-          // Update the geometry to match new card dimensions.
-          mainPanel.userData.textMesh.geometry.dispose();
-          mainPanel.userData.textMesh.geometry = new THREE.PlaneGeometry(cardWidth, cardHeight);
-        }
       }
       
       function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        // Optionally, update the text texture for better resolution:
-        textTexture = createTextTexture();
-        if (mainPanel.userData.textMesh) {
-          mainPanel.userData.textMesh.material.map = textTexture;
-          mainPanel.userData.textMesh.material.needsUpdate = true;
+        
+        // Only update the scene if we're in panel view mode
+        if (isViewingPanel) {
+          updateScene();
         }
-        updateScene();
       }
       
       function animate() {
         requestAnimationFrame(animate);
-        
-        // Animate the main panel's rotation if needed.
-        if (isRotating) {
-          const delta = targetRotationY - mainPanel.rotation.y;
-          if (Math.abs(delta) < 0.01) {
-            mainPanel.rotation.y = targetRotationY;
-            isRotating = false;
-          } else {
-            mainPanel.rotation.y += delta * 0.1;
-          }
-        }
-        
-        // Update text mesh visibility:
-        // Calculate effective rotation in [0, 2π)
-        let effectiveRotation = mainPanel.rotation.y % (2 * Math.PI);
-        if (effectiveRotation < 0) effectiveRotation += 2 * Math.PI;
-        // Show the text mesh when the card is mostly flipped (e.g. past 90°)
-        if (mainPanel.userData.textMesh) {
-          mainPanel.userData.textMesh.visible = (effectiveRotation >= Math.PI / 2);
-        }
-        
         renderer.render(scene, camera);
       }
     </script>

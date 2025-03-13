@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <title>3JS Main Panel with Dynamic Text Backside</title>
+    <!-- Add audio element (hidden) -->
+    <audio id="boomboxAudio" style="display: none;"></audio>
     <style>
       body {
         margin: 0;
@@ -33,15 +35,20 @@
       }
         .boombox {
           position: fixed;
-          transform: rotateY(180deg)scale(.3);
-          bottom: -105px;
-          right: -50px;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          cursor: pointer; /* Add pointer cursor to indicate it's clickable */
+          z-index: 1000; /* Ensure it's above other elements */
+          width: 150px; /* Set explicit width */
+          height: 150px; /* Set explicit height */
       }
     </style>
   </head>
   <body>
     <div class="boombox">
-      <img src="boombox.gif" alt="box go boom">
+      <img id="boomboxImage" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="box go boom" style="width: 100%; height: 100%; object-fit: contain;">
+      <p style="text-align: center; margin-top: 5px; font-size: 12px;">Click to play/pause</p>
     </div>
     <!-- Text container div -->
     <div id="textContainer">
@@ -64,6 +71,68 @@
     <!-- Include Three.js from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
+      // Make sure we have the correct path to the GIF
+      const gifPath = 'boombox.gif'; // Update this to the correct path if needed
+      let isPlaying = false;
+      const boomboxImage = document.getElementById('boomboxImage');
+      const boomboxAudio = document.getElementById('boomboxAudio');
+      
+      // List of audio files to play randomly
+      const audioFiles = [
+        'music1.mp3',
+        'music2.mp3',
+        'music3.mp3',
+        'music4.mp3'
+        // Add more audio files as needed
+      ];
+      
+      // Function to get a random audio file
+      function getRandomAudio() {
+        const randomIndex = Math.floor(Math.random() * audioFiles.length);
+        return audioFiles[randomIndex];
+      }
+      
+      // Check if image exists by preloading it
+      const preloadGif = new Image();
+      preloadGif.src = gifPath;
+      preloadGif.onload = function() {
+        console.log('GIF loaded successfully');
+      };
+      preloadGif.onerror = function() {
+        console.error('Failed to load GIF. Please check the path: ' + gifPath);
+      };
+      
+      document.querySelector('.boombox').addEventListener('click', function() {
+        if (isPlaying) {
+          // Stop the animation and audio
+          boomboxImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+          boomboxAudio.pause();
+          boomboxAudio.currentTime = 0; // Reset audio to beginning
+          isPlaying = false;
+        } else {
+          // Start the animation and play random audio
+          boomboxImage.src = gifPath;
+          
+          // Set a random audio file
+          const audioFile = getRandomAudio();
+          boomboxAudio.src = audioFile;
+          
+          // Play the audio (with error handling)
+          const playPromise = boomboxAudio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.error('Audio playback failed:', error);
+              // If autoplay is blocked, show message to user
+              if (error.name === 'NotAllowedError') {
+                alert('Please enable autoplay to hear the music with the animation.');
+              }
+            });
+          }
+          
+          isPlaying = true;
+        }
+      });
+      
       let scene, camera, renderer;
       let mainPanel, mainPanelBorder;
       let cornerLines = [];
@@ -429,15 +498,6 @@
         renderer.render(scene, camera);
       }
       
-      document.addEventListener('DOMContentLoaded', () => {
-  const gif = document.querySelector('.boombox img');
-  const originalSrc = gif.src;
-  gif.src = ''; // Stop initial gif play
-
-  document.querySelector('.boombox').addEventListener('click', () => {
-    gif.src = originalSrc; // Restart gif on click
-  });
-});
     </script>
   </body>
 </html>
